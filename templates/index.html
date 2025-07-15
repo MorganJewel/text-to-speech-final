@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Phrase Library</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <div class="container">
+    <h1>🗣️ Phrase Library</h1>
+
+    <form id="phraseForm" enctype="multipart/form-data">
+      <input type="text" name="text" id="text" placeholder="Type a phrase..." required />
+      <input type="file" name="image" id="image" accept="image/*" />
+      <div class="buttons">
+        <button type="button" onclick="speak()">🔊 Speak</button>
+        <button type="submit">💾 Save</button>
+      </div>
+    </form>
+
+    <h2>Saved Phrases</h2>
+    <ul id="phraseList"></ul>
+  </div>
+
+  <script>
+    async function speak(text = null) {
+      const phrase = text || document.getElementById("text").value;
+      const synth = window.speechSynthesis;
+      if (phrase && synth) {
+        const utterance = new SpeechSynthesisUtterance(phrase);
+        synth.speak(utterance);
+      }
+    }
+
+    async function fetchPhrases() {
+      const res = await fetch(`/phrases`);
+      const phrases = await res.json();
+      const list = document.getElementById("phraseList");
+      list.innerHTML = "";
+
+      for (const p of phrases) {
+        const li = document.createElement("li");
+        if (p.pinned) li.classList.add("pinned");
+
+        const textSpan = document.createElement("span");
+        textSpan.textContent = p.text;
+        textSpan.onclick = () => speak(p.text);
+        li.appendChild(textSpan);
+
+        if (p.image) {
+          const img = document.createElement("img");
+          img.src = p.image;
+          img.alt = "Image";
+          li.appendChild(img);
+        }
+
+        const pinBtn = document.createElement("button");
+        pinBtn.textContent = "📌";
+        pinBtn.onclick = async () => {
+          await fetch("/toggle_pin", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ text: p.text }),
+          });
+          fetchPhrases();
+        };
+        li.appendChild(pinBtn);
+
+        const delBtn = document.createElement("button");
+        delBtn.textContent = "❌";
+        delBtn.onclick = async () => {
+          await fetch("/delete", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ text: p.text }),
+          });
+          fetchPhrases();
+        };
+        li.appendChild(delBtn);
+
+        list.appendChild(li);
+      }
+    }
+
+    document.getElementById("phraseForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const form = document.getElementById("phraseForm");
+      const data = new FormData(form);
+
+      await fetch("/save", {
+        method: "POST",
+        body: data,
+      });
+
+      form.reset();
+      fetchPhrases();
+    });
+
+    window.onload = () => fetchPhrases();
+  </script>
+</body>
+</html>
